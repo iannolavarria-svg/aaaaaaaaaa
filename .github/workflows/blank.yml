@@ -19,6 +19,10 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt update
+          # Instalamos primero la librería que está bloqueando el proceso
+          sudo apt install -y libunwind-dev
+          
+          # Ahora instalamos el resto, incluyendo las necesarias para Pygame
           sudo apt install -y \
             build-essential \
             git \
@@ -48,6 +52,7 @@ jobs:
             libtool \
             pkg-config \
             cmake
+
 
       - name: Install Python build tools
         run: |
