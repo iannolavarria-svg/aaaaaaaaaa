@@ -14,15 +14,15 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10' # Versión estable para Buildozer
+          python-version: '3.10'
 
       - name: Install system dependencies
         run: |
           sudo apt update
-          # Instalamos primero la librería que está bloqueando el proceso
+          # Solución al error de dependencias rotas (Exit code 100)
           sudo apt install -y libunwind-dev
           
-          # Ahora instalamos el resto, incluyendo las necesarias para Pygame
+          # Dependencias necesarias para Buildozer y Pygame
           sudo apt install -y \
             build-essential \
             git \
@@ -53,42 +53,39 @@ jobs:
             pkg-config \
             cmake
 
-
       - name: Install Python build tools
         run: |
           pip install --upgrade pip
-          pip install buildozer cython==0.29.33 wheel
+          # Usamos versiones estables de Cython y Buildozer
+          pip install buildozer==1.5.0 cython==0.29.33 wheel
 
-      # 📦 Descargar y preparar el proyecto
       - name: Download and Unzip project
         run: |
-          curl -L --fail -o spacebox.zip https://github.com/iannolavarria-svg/aaaaaaaaaa/releases/download/x/spacebox.zip
+          curl -L --fail -o spacebox.zip https://github.com
           unzip -o spacebox.zip
           rm spacebox.zip
 
-      # 🔍 Localizar y mover archivos a la raíz (Para evitar errores de ruta)
       - name: Prepare Workspace
         run: |
+          # Busca el buildozer.spec sin importar dónde se descomprimió
           SPEC_FILE=$(find . -name buildozer.spec | head -n 1)
           if [ -z "$SPEC_FILE" ]; then
-            echo "❌ ERROR: No se encontró buildozer.spec"
+            echo "❌ ERROR: No se encontró buildozer.spec en el ZIP"
             exit 1
           fi
+          # Mueve todo el contenido de esa carpeta a la raíz para evitar errores de ruta
           SPEC_DIR=$(dirname "$SPEC_FILE")
-          echo "Moviendo archivos desde $SPEC_DIR a la raíz..."
           mv "$SPEC_DIR"/* . || true
           ls -la
 
-      # 🔨 Build APK (Usando el comando oficial para GitHub Actions)
       - name: Build with Buildozer
         run: |
-          # Aceptamos licencias de Android automáticamente
+          # Aceptamos licencias y compilamos
+          # Importante: Asegúrate que en tu buildozer.spec diga 'pygame-ce'
           yes | buildozer -v android debug
         env:
-          # Esto evita errores de permisos en el entorno de GitHub
           USER: runner
 
-      # 📦 Subir APK generado
       - name: Upload APK
         if: success()
         uses: actions/upload-artifact@v4
