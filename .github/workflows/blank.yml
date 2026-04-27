@@ -11,77 +11,63 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Setup Python 3.10
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
+      # Forzamos JDK 17 explícitamente (Necesario para Android API 33)
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
       - name: Install system dependencies
         run: |
           sudo apt update
-          # Solución al error de dependencias rotas (Exit code 100)
           sudo apt install -y libunwind-dev
-          
-          # Dependencias necesarias para Buildozer y Pygame
           sudo apt install -y \
-            build-essential \
-            git \
-            python3-dev \
-            ffmpeg \
-            libsdl2-dev \
-            libsdl2-image-dev \
-            libsdl2-mixer-dev \
-            libsdl2-ttf-dev \
-            libportmidi-dev \
-            libswscale-dev \
-            libavformat-dev \
-            libavcodec-dev \
-            zlib1g-dev \
-            openjdk-17-jdk \
-            unzip \
-            zip \
-            libsqlite3-dev \
-            sqlite3 \
-            libgstreamer1.0-dev \
-            gstreamer1.0-plugins-base \
-            gstreamer1.0-plugins-good \
-            libffi-dev \
-            libssl-dev \
-            autoconf \
-            automake \
-            libtool \
-            pkg-config \
-            cmake
+            build-essential git python3-dev ffmpeg libsdl2-dev libsdl2-image-dev \
+            libsdl2-mixer-dev libsdl2-ttf-dev libportmidi-dev libswscale-dev \
+            libavformat-dev libavcodec-dev zlib1g-dev unzip zip libsqlite3-dev \
+            sqlite3 libgstreamer1.0-dev gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good libffi-dev libssl-dev autoconf automake \
+            libtool pkg-config cmake lld
 
       - name: Install Python build tools
         run: |
-          pip install --upgrade pip
-          # Usamos versiones estables de Cython y Buildozer
-          pip install buildozer==1.5.0 cython==0.29.33 wheel
+          pip install --upgrade pip setuptools wheel
+          pip install buildozer==1.5.0 cython==0.29.33
 
       - name: Download and Unzip project
         run: |
-          curl -L --fail -o spacebox.zip https://github.com/iannolavarria-svg/aaaaaaaaaa/releases/download/x/spacebox.zip
+          curl -L --fail -o spacebox.zip "https://github.com/iannolavarria-svg/aaaaaaaaaa/releases/download/x/spacebox.zip"
           unzip -o spacebox.zip
           rm spacebox.zip
 
-      - name: Prepare Workspace
+      - name: Prepare Workspace (Explicit Move)
         run: |
-          # Busca el buildozer.spec sin importar dónde se descomprimió
           SPEC_FILE=$(find . -name buildozer.spec | head -n 1)
           if [ -z "$SPEC_FILE" ]; then
-            echo "❌ ERROR: No se encontró buildozer.spec en el ZIP"
+            echo "❌ ERROR: No se encontró buildozer.spec"
             exit 1
           fi
-          # Mueve todo el contenido de esa carpeta a la raíz para evitar errores de ruta
           SPEC_DIR=$(dirname "$SPEC_FILE")
-          mv "$SPEC_DIR"/* . || true
-          ls -la
+          # Mover todo a la raíz para que source.dir = . funcione siempre
+          cp -r "$SPEC_DIR"/* . || true
+          
+          # Crear un icono de emergencia si no existe el PNG
+          if [ ! -f "icon.png" ]; then
+            echo "⚠️ icon.png no encontrado. Intentando usar icon.ico o creando uno vacío."
+            cp icon.ico icon.png || touch icon.png
+          fi
 
       - name: Build with Buildozer
         run: |
-          # Aceptamos licencias y compilamos
-          # Importante: Asegúrate que en tu buildozer.spec diga 'pygame-ce'
+          # Aumentamos memoria de Gradle para evitar crashes al final
+          export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx2g"
+          # Comando explícito con log nivel 2
           yes | buildozer -v android debug
         env:
           USER: runner
