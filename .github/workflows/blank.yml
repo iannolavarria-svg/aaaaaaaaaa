@@ -1,4 +1,4 @@
-name: Build APK
+name: Build APK (Pygame Only)
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Python 3.10
@@ -16,7 +16,6 @@ jobs:
         with:
           python-version: '3.10'
 
-      # Forzamos JDK 17 explícitamente (Necesario para Android API 33)
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -26,55 +25,52 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt update
-          sudo apt install -y libunwind-dev
           sudo apt install -y \
-            build-essential git python3-dev ffmpeg libsdl2-dev libsdl2-image-dev \
-            libsdl2-mixer-dev libsdl2-ttf-dev libportmidi-dev libswscale-dev \
-            libavformat-dev libavcodec-dev zlib1g-dev unzip zip libsqlite3-dev \
-            sqlite3 libgstreamer1.0-dev gstreamer1.0-plugins-base \
-            gstreamer1.0-plugins-good libffi-dev libssl-dev autoconf automake \
-            libtool pkg-config cmake lld
+            build-essential git python3-dev \
+            libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
+            libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev \
+            zlib1g-dev libsqlite3-dev sqlite3 libffi-dev libssl-dev \
+            ffmpeg pkg-config cmake lld unzip zip
 
-      - name: Install Python build tools
+      - name: Install Buildozer and dependencies
         run: |
-          pip install --upgrade pip setuptools wheel
-          pip install buildozer==1.5.0 cython==0.29.33
+          pip install --upgrade pip setuptools wheel cython==0.29.36
+          pip install buildozer==1.5.0
 
-      - name: Download and Unzip project
+      - name: Prepare project files
         run: |
-          curl -L --fail -o spacebox.zip "https://github.com/iannolavarria-svg/aaaaaaaaaa/releases/download/x/spacebox.zip"
-          unzip -o spacebox.zip
-          rm spacebox.zip
-
-      - name: Prepare Workspace (Explicit Move)
-        run: |
-          SPEC_FILE=$(find . -name buildozer.spec | head -n 1)
+          # Buscar y mover buildozer.spec a la raíz
+          SPEC_FILE=$(find . -name "buildozer.spec" | head -n 1)
           if [ -z "$SPEC_FILE" ]; then
             echo "❌ ERROR: No se encontró buildozer.spec"
             exit 1
           fi
           SPEC_DIR=$(dirname "$SPEC_FILE")
-          # Mover todo a la raíz para que source.dir = . funcione siempre
-          cp -r "$SPEC_DIR"/* . || true
-          
-          # Crear un icono de emergencia si no existe el PNG
+          cp -rf "$SPEC_DIR"/* . || true
+
+          # Crear icon.png de emergencia si no existe
           if [ ! -f "icon.png" ]; then
-            echo "⚠️ icon.png no encontrado. Intentando usar icon.ico o creando uno vacío."
-            cp icon.ico icon.png || touch icon.png
+            echo "⚠️  icon.png no encontrado, creando uno vacío..."
+            touch icon.png
           fi
 
-      - name: Build with Buildozer
+      - name: Build APK with Buildozer
         run: |
-          # Aumentamos memoria de Gradle para evitar crashes al final
-          export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx2g"
-          # Comando explícito con log nivel 2
+          export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx4g -XX:+HeapDumpOnOutOfMemoryError"
           yes | buildozer -v android debug
         env:
           USER: runner
 
-      - name: Upload APK
+      - name: Upload APK artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: spacebox-apk
           path: bin/*.apk
+          retention-days: 7
+
+      - name: Show build summary
+        if: always()
+        run: |
+          echo "=== Build finalizado ==="
+          ls -la bin/ || echo "No se encontró la carpeta bin/"
