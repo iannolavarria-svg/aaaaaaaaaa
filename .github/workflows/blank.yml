@@ -22,55 +22,81 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Install system dependencies
+      - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y \
-            build-essential git python3-dev \
+          sudo apt install -y build-essential git python3-dev \
             libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
-            libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev \
-            zlib1g-dev libsqlite3-dev sqlite3 libffi-dev libssl-dev \
-            ffmpeg pkg-config cmake lld unzip zip
+            libffi-dev libssl-dev zlib1g-dev libsqlite3-dev unzip zip ffmpeg
 
-      - name: Install Buildozer and dependencies
+      - name: Install Buildozer
         run: |
           pip install --upgrade pip setuptools wheel cython==0.29.36
           pip install buildozer==1.5.0
 
-      - name: Prepare project files
+      - name: Download and extract project
         run: |
-          # Buscar y mover buildozer.spec a la raíz
-          SPEC_FILE=$(find . -name "buildozer.spec" | head -n 1)
+          echo "Descargando spacebox.zip..."
+          curl -L --fail -o spacebox.zip \
+            "https://github.com/iannolavarria-svg/aaaaaaaaaa/releases/download/x/spacebox.zip"
+
+          echo "Descomprimiendo..."
+          unzip -o spacebox.zip
+          rm spacebox.zip
+
+          # Mostrar estructura para debug
+          echo "=== Estructura después de unzip ==="
+          ls -la
+
+      - name: Find and move buildozer.spec to root
+        run: |
+          echo "Buscando buildozer.spec..."
+          SPEC_FILE=$(find . -name "buildozer.spec" -type f | head -n 1)
+
           if [ -z "$SPEC_FILE" ]; then
-            echo "❌ ERROR: No se encontró buildozer.spec"
+            echo "❌ ERROR: No se encontró buildozer.spec en el zip"
+            echo "Archivos encontrados:"
+            find . -name "*.spec" -o -name "buildozer*" | head -20
             exit 1
           fi
-          SPEC_DIR=$(dirname "$SPEC_FILE")
-          cp -rf "$SPEC_DIR"/* . || true
 
-          # Crear icon.png de emergencia si no existe
-          if [ ! -f "icon.png" ]; then
-            echo "⚠️  icon.png no encontrado, creando uno vacío..."
-            touch icon.png
+          SPEC_DIR=$(dirname "$SPEC_FILE")
+          echo "✅ buildozer.spec encontrado en: $SPEC_FILE"
+          
+          # Mover todo el contenido de la carpeta del spec a la raíz
+          if [ "$SPEC_DIR" != "." ]; then
+            echo "Moviendo archivos desde $SPEC_DIR a la raíz..."
+            cp -rf "$SPEC_DIR"/* . || true
+            rm -rf "$SPEC_DIR"
           fi
 
-      - name: Build APK with Buildozer
-        run: |
-          export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx4g -XX:+HeapDumpOnOutOfMemoryError"
-          yes | buildozer -v android debug
-        env:
-          USER: runner
+          # Verificar que ahora exista en la raíz
+          if [ ! -f "buildozer.spec" ]; then
+            echo "❌ ERROR: No se pudo mover buildozer.spec a la raíz"
+            ls -la
+            exit 1
+          fi
 
-      - name: Upload APK artifact
+          echo "✅ buildozer.spec listo en la raíz"
+
+      - name: Check icon
+        run: |
+          if [ ! -f "icon.png" ]; then
+            echo "⚠️  icon.png no encontrado, creando archivo vacío..."
+            touch icon.png
+          else
+            echo "✅ icon.png encontrado"
+          fi
+
+      - name: Build APK
+        run: |
+          export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx4g"
+          yes | buildozer -v android debug
+
+      - name: Upload APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: spacebox-apk
           path: bin/*.apk
           retention-days: 7
-
-      - name: Show build summary
-        if: always()
-        run: |
-          echo "=== Build finalizado ==="
-          ls -la bin/ || echo "No se encontró la carpeta bin/"
